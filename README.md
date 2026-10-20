@@ -41,8 +41,8 @@ been re-created from this file, and the original env was built from a MISO sourc
 if `pip install misopy==0.5.4` fails, install MISO from its GitHub source.
 
 You also need:
-- event annotations as MISO GFF3 files, one per event type (the originals used MISO-style
-  `SE/A3SS/A5SS/MXE/RI.hg38.gff3` files, `chr`-prefixed). Download or build them yourself.
+- event annotations as MISO GFF3 files, one per event type (`SE`, `A3SS`, `A5SS`, `MXE`, `RI`),
+  with `chr`-prefixed chromosome names. See **Event annotation files** below for how to obtain them.
 - sorted, indexed BAM files with headers whose chromosome names match the GFF3 (`chr1` vs `1`).
 
 ## 2. Configure
@@ -118,31 +118,36 @@ Notes:
 - Sashimi coverages (mapped reads, used to scale read density) are computed with
   `samtools view -c -F 260`; set `samples[].mapped_reads` to use another definition.
 
-## 4. Things that commonly go wrong
+## Event annotation files
 
-- **MISO ran on 4 cores although 32 were requested.** The original jobs asked SLURM for 32 CPUs
-  but never passed `-p`, so MISO used its default of 4 processes. Set `miso.num_processes` to
-  match `threads`.
-- **Paired-end data was run as single-end.** The original runs did not pass `--paired-end`
-  although the data were paired-end STAR alignments; MISO then treats each mate independently
-  (allowed, see the MISO manual). For real paired-end mode set `miso.paired_end` using the
-  mean and sd from `insert-len`. That helper is untested here, and MISO's insert-length code
-  needs the `tagBam` tool from bedtools.
-- **Read length must be right per sample.** MISO takes one `--read-len` and checks the BAM
-  ("Checking if BAM has mixed read lengths"). Datasets in one project had different lengths, so
-  set `read_len` per sample; trimmed BAMs with mixed lengths are a problem.
-- **Chromosome names.** Annotation and BAM must use the same names; `01 check` tests this.
-  An index built from an annotation that includes alt/fix contigs makes `miso --run` start
-  slowly (it loads every chromosome folder).
-- **Harmless messages.** `genes_to_filenames.shelve ... File not found` (MISO then loads the
-  per-chromosome folders) and `Event ... was not sampled properly in <a> or <b>` from
-  `compare_miso` (low or no coverage in a sample) both appeared in successful runs. The number
-  of events differs between samples (e.g. ~16.6k vs ~17.0k), and only events present in both
-  are compared.
-- **Directory name = label.** `compare_miso` names its output after the two sample
-  directory basenames, which is why outputs live in `miso/<TYPE>/<sample>` (sample names must
-  be unique).
-- **Huge Bayes factors.** Strongly supported events reach 1e6 or more (or `inf`); do not rely on
-  the absolute value for ranking beyond the threshold.
-- **Headless plotting.** `sashimi_plot` needs a non-interactive matplotlib backend on compute
-  nodes; the scripts set `MPLBACKEND=Agg`.
+`annotation.events` in the config points to one GFF3 per event type, for example
+`Path_to_annotation_dir/SE.hg38.gff3`. These files only describe public gene annotation, so they
+can be rebuilt or downloaded; they are not project data. Each file has `gene` / `mRNA` (`.A`, `.B`)
+records per event, with IDs of the form `chr1:start:end:strand@chr1:...`, and `chr`-prefixed names.
+
+Ways to get them (check each source yourself before relying on it; none was run for this README):
+
+1. **Prebuilt MISO annotations.** The MISO documentation
+   ([annotation page](https://miso.readthedocs.io/en/dev/annotation.html)) lists downloadable event
+   sets for hg18/hg19 and mm9/mm10. They are for hg19, not hg38, and were themselves lifted over from
+   older assemblies. The MISO users list reports that there is no official hg38 set
+   ([thread](https://mailman.mit.edu/pipermail/miso-users/Week-of-Mon-20210830/000419.html)), and a
+   link in the docs has been reported as broken.
+2. **Lift over hg19 to hg38.** Convert the GFF3 coordinates with UCSC `liftOver`, then re-check that
+   exon boundaries still make sense and that no event lost a part.
+3. **Build from an hg38 gene annotation.** Create events from a UCSC gene table (for example
+   `ensGene`) or GENCODE/Ensembl GTF, then format them as MISO GFF3. The original analysis did this
+   with an in-house, unpublished tool using the `commonshortest` flanking rule (the most common
+   shortest form of the flanking exons), so there is no public download of the exact files used here.
+   Keep the annotation release, genome build and event-building rule in your methods.
+4. **Bioconductor `alternativeSplicingEvents.hg38`.** Provides hg38 event definitions compiled from
+   MISO, VAST-TOOLS, SUPPA and rMATS
+   ([manual](https://bioconductor.statistik.tu-dortmund.de/packages/3.21/data/annotation/manuals/alternativeSplicingEvents.hg38/man/alternativeSplicingEvents.hg38.pdf)).
+   It is an R data package, so you would have to convert its events to MISO GFF3 yourself; I have not
+   verified a direct export.
+
+Whichever you use:
+- Use the **same genome build and chromosome naming** as the BAMs (`01_prepare_events.py check` tests this).
+- Prefer restricting the annotation to primary chromosomes before `index`. Alt/fix contigs create
+  hundreds of extra index folders and slow `miso --run` start-up.
+- Record the annotation source and version next to your results.
