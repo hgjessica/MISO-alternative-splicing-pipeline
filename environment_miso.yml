@@ -1,0 +1,24 @@
+# MISO (misopy 0.5.4) is a Python 2.7 program. This file reproduces the conda env the original
+# analysis ran in (python 2.7.18); versions below are the ones found installed there.
+# The step scripts in this folder are Python >= 3.8 (stdlib only) and are NOT run inside this
+# env's python2: start them with a separate python3 (see README, "Two Pythons").
+name: miso
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=2.7.18
+  - numpy=1.16
+  - scipy=1.2.3
+  - matplotlib=2.2.5
+  - pysam=0.20.0
+  - pyparsing=2.4.7
+  - pandas=0.24.2      # installed in the original env; not needed by MISO itself
+  - samtools=1.5
+  - bedtools=2.26.0    # needed by --prefilter and pe_utils (insert length)
+  - pybedtools=0.7.10
+  - pip
+  - pip:
+      - misopy==0.5.4  # the original env was built from a source checkout (python setup.py install);
+                       # if pip cannot build it, install from the MISO GitHub source instead
